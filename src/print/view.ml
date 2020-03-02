@@ -90,19 +90,25 @@ let draw_poly l col =
   List.iteri (fun i (x,y) -> arr.(i) <- normalize (x,y)) l;
   draw_poly arr
 
+let do_draw_seg = ref true
+
 let draw_seg_mpqf p1 p2 col =
-  set_color col;
-  let p1 = to_float p1 and
+  if !do_draw_seg then begin
+    set_color col;
+    let p1 = to_float p1 and
       p2 = to_float p2 in
-  let x1,y1 = normalize p1
-  and x2,y2 = normalize p2
-  in draw_segments [|(x1, y1, x2, y2)|]
+    let x1,y1 = normalize p1
+    and x2,y2 = normalize p2
+    in draw_segments [|(x1, y1, x2, y2)|]
+  end
 
 let draw_seg p1 p2 col =
-  set_color col;
-  let x1,y1 = normalize p1
-  and x2,y2 = normalize p2
-  in draw_segments [|(x1, y1, x2, y2)|]
+  if !do_draw_seg then begin
+    set_color col;
+    let x1,y1 = normalize p1
+    and x2,y2 = normalize p2
+    in draw_segments [|(x1, y1, x2, y2)|]
+  end
 
 let draw_dashed_seg ((x1,y1) as p1) (x2,y2) col =
   let man_dist = abs_float (x2-.x1) +. abs_float (y2-.y1) in

@@ -9,6 +9,7 @@ module Make(Abs : Adcp_sig.AbstractCP) (Dr:Drawer_sig.Drawer with type t = Abs.t
   let color_unsure = Graphics.green
   let color_not_yet = Graphics.rgb 220 220 220
   let color_selected = Graphics.rgb 255 200 200
+  let color_not = Graphics.white
 
 
   let draw_s v1 v2 abs =
@@ -26,6 +27,10 @@ module Make(Abs : Adcp_sig.AbstractCP) (Dr:Drawer_sig.Drawer with type t = Abs.t
     Dr.draw2d abs (v1,v2) color_not_yet;
     View.draw_end v1 v2
 
+  let draw_not v1 v2 abs =
+    Dr.draw2d abs (v1,v2) color_not;
+    View.draw_end v1 v2
+
   let select v1 v2 abs =
     Dr.draw2d abs (v1,v2) color_selected;
     View.draw_end v1 v2
@@ -37,12 +42,16 @@ module Make(Abs : Adcp_sig.AbstractCP) (Dr:Drawer_sig.Drawer with type t = Abs.t
   let do_if_not_none f = function
     | Some a -> f a
     | None -> ()
+  exception Skip
+
+  let invert_order = ref false
 
   let explore (abs:Abs.t) (constrs:Csp.ctrs) (consts:Csp.csts) (_:Csp.jacob) v1 v2 =
     let selected = ref None in
     let draw_s = draw_s v1 v2 in
     let draw_u = draw_u v1 v2 in
     let draw_n = draw_n v1 v2 in
+    let draw_not = draw_not v1 v2 in
     let select = select v1 v2 in
     let draw_wait = draw_wait v1 v2 in
     let switch abs =
@@ -52,16 +61,27 @@ module Make(Abs : Adcp_sig.AbstractCP) (Dr:Drawer_sig.Drawer with type t = Abs.t
     in
     let rec aux abs cstrs csts iter =
       switch abs;
-      Unix.pause();
+      (* Unix.pause(); *)
+      try
+      if Graphics.key_pressed () then
+        begin
+          match Graphics.read_key () with
+          | 's' (* skip *)    -> raise Skip
+          | '+' (* bigger *)  -> Constant.precision := !Constant.precision *. 2.
+          | '-' (* smaller *) -> Constant.precision := !Constant.precision /. 2.
+          | 'i' (* invert *) -> invert_order := not !invert_order
+          | 'd' (* draw seg *) -> View.do_draw_seg := not !View.do_draw_seg
+          | _ -> Printf.printf "s (skip), + bigger, - smaller, i invert order, d draw seg\n%!"
+        end;
       match consistency abs cstrs csts with
-      | Empty -> draw_n abs; selected := None;
+      | Empty -> draw_not abs; selected := None;
       | Full (abs', _) -> draw_n abs; selected := None; draw_s abs'
       | Maybe(a,_,_) when Abs.is_small a || iter > !Constant.max_iter ->
            draw_n abs; selected := None; draw_u a
       | Maybe(abs',cstrs,_) ->
          draw_n abs; selected := None;
          switch abs';
-         Unix.pause ();
+         (* Unix.pause (); *)
          if !Constant.pruning then
            let ls,lu = prune abs' cstrs in
            List.iter draw_s ls;
@@ -72,15 +92,17 @@ module Make(Abs : Adcp_sig.AbstractCP) (Dr:Drawer_sig.Drawer with type t = Abs.t
 	           ) rest
          else
            let splits = split abs' cstrs in
+           let splits = if !invert_order then List.rev splits else splits in
            List.iter (fun elem -> selected := None; draw_wait elem) splits;
            List.iter (fun elem ->
                aux elem cstrs csts (iter +1)
-	           ) splits
+	     ) splits
+      with Skip -> draw_u abs; selected := None
     in aux abs constrs consts 0
 
   let solving prob =
     View.create_window 800 800;
-    let _ = input_line stdin in
+    (* let _ = input_line stdin in *)
     let vars = Print.draw_vars prob in
     let size = Array.length vars in
     let(v1,v2) =(vars.(0)),(vars.(1 mod size)) in
